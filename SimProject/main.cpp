@@ -68,6 +68,7 @@ glm::vec3 cubePositions[] = {
 glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+glm::vec3 cameraVel = glm::vec3(0.0f, 0.0f, 0.0f);
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -79,7 +80,7 @@ float lastX = 400, lastY = 300;
 int shader, lineShader;
 bool isCameraMoving = false;
 
-const int num_points = 3;
+const int num_points = 7;
 struct point {
 	glm::vec3 position;
 };
@@ -198,9 +199,12 @@ void update(RK4Solver solver) {
 	//	solver.state[1].y = -solver.state[1].y;
 	//}
 	solver.update(deltaTime);
-	points[0].position = solver.state[0];
-	points[1].position = solver.state[2];
-	points[2].position = solver.state[4];
+	for (int i = 0; i < num_points; i++) {
+		points[i].position = solver.state[2 * i];
+	}
+	//points[0].position = solver.state[0];
+	//points[1].position = solver.state[2];
+	//points[2].position = solver.state[4];
 }
 
 void render(RK4Solver solver) {
@@ -293,38 +297,83 @@ glm::vec3* update_f(float t, int n_vars, glm::vec3* state) {
 }
 
 glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
-	float spring_k_1 = 3.0f;
-	float spring_k_2 = 3.0f;
-	float spring_rest_1 = 5.0f;
-	float spring_rest_2 = 5.0f;
-	float c = 0.5f;
-
 	glm::vec3* ret = new glm::vec3[n_vars];
 
+	// origin point
+	ret[0] = state[1] + cameraVel;
+	//(isCameraMoving ? glm::vec3(5.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 0.0f));
+	ret[1] = glm::vec3(0.0f, 0.0f, 0.0f);
+
+	float ks[num_points-1] = {
+		200.0f, 200.0f, 200.0f, 200.0f, 200.0f, 200.0f
+	};
+	float spring_rests[num_points-1] = {
+		1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
+	};
+
+	//float spring_k_1 = 3.0f;
+	//float spring_k_2 = 3.0f;
+	//float spring_rest_1 = 5.0f;
+	//float spring_rest_2 = 5.0f;
+	float c = 0.5f;
+
+	// generate the derivatives for the joints
+	for (int i = 2; i < n_vars; i += 2) {
+		glm::vec3 v = state[i + 1];
+		glm::vec3 pos = state[i];
+
+		glm::vec3 prevPos = state[i - 2];
+		//float stretch1 = glm::length(pos - prevPos) - spring_rests[i / 2 - 1];
+		float stretch1 = glm::length(pos - prevPos) - 1.0f;
+		glm::vec3 dir1 = glm::normalize(pos - prevPos);
+		//float k1 = ks[i / 2 - 1];
+		float k1 = 10.0f;
+
+		glm::vec3 force;
+		if (i < n_vars - 2) {
+			glm::vec3 nextPos = state[i + 2];
+			//float stretch2 = glm::length(nextPos - pos) - spring_rests[i / 2];
+			float stretch2 = glm::length(nextPos - pos) - 1.0f;
+			glm::vec3 dir2 = glm::normalize(nextPos - pos);
+			//float k2 = ks[i / 2];
+			float k2 = 10.0f;
+
+			force = (-k1 * stretch1 * dir1) + (k2 * stretch2 * dir2) - v * c;
+		}
+		else {
+			// handle end of spring
+			force = (-k1 * stretch1 * dir1) + glm::vec3(10.0f, -9.8f, 0.0f) - v * c;
+		}
+
+		ret[i] = v;
+		ret[i + 1] = force / 1.0f;
+	}
+
 	// calculate force on first joint
-	glm::vec3 joint_1_v = state[3];
-	glm::vec3 pos = state[2];
-	glm::vec3 origin = state[0];
-	float stretch_len_1 = glm::length(pos - origin) - spring_rest_1;
-	glm::vec3 dir1 = glm::normalize(pos - origin);
-	float stretch_len_2 = glm::length(state[4] - pos) - spring_rest_2;
-	glm::vec3 dir2 = glm::normalize(state[4] - pos);
-	glm::vec3 joint_1_f = (-spring_k_1 * stretch_len_1 * dir1) + (spring_k_2 * stretch_len_2 * dir2) - joint_1_v*c;
+	//glm::vec3 joint_1_v = state[3];
+	//glm::vec3 pos = state[2];
+	//glm::vec3 origin = state[0];
+	//float stretch_len_1 = glm::length(pos - origin) - spring_rest_1;
+	//glm::vec3 dir1 = glm::normalize(pos - origin);
+	//float stretch_len_2 = glm::length(state[4] - pos) - spring_rest_2;
+	//glm::vec3 dir2 = glm::normalize(state[4] - pos);
+	//glm::vec3 joint_1_f = (-spring_k_1 * stretch_len_1 * dir1) + (spring_k_2 * stretch_len_2 * dir2) - joint_1_v*c;
 
 	// calculate force on last block
-	glm::vec3 block_v = state[5];
-	pos = state[4];
-	origin = state[2];
-	stretch_len_1 = glm::length(pos - origin) - spring_rest_2;
-	dir1 = glm::normalize(pos - origin);
-	glm::vec3 block_f = (-spring_k_2 * stretch_len_1 * dir1) + glm::vec3(0.0f, -9.8f, 0.0f) - block_v * c;
 
-	ret[0] = state[1] + (isCameraMoving ? glm::vec3(5.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 0.0f));
-	ret[1] = glm::vec3(0.0f, 0.0f, 0.0f);
-	ret[2] = joint_1_v;
-	ret[3] = joint_1_f / 1.0f;
-	ret[4] = block_v;
-	ret[5] = block_f / 1.0f;
+	//glm::vec3 block_v = state[n_vars - 1];
+	//glm::vec3 pos = state[n_vars - 2];
+	//glm::vec3 prevPos = state[n_vars - 4];
+	//stretch_len_1 = glm::length(pos - origin) - spring_rest_2;
+	//dir1 = glm::normalize(pos - origin);
+	//glm::vec3 block_f = (-spring_k_2 * stretch_len_1 * dir1) + glm::vec3(0.0f, -9.8f, 0.0f) - block_v * c;
+
+	//ret[0] = state[1] + (isCameraMoving ? glm::vec3(5.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 0.0f));
+	//ret[1] = glm::vec3(0.0f, 0.0f, 0.0f);
+	//ret[2] = joint_1_v;
+	//ret[3] = joint_1_f / 1.0f;
+	//ret[4] = block_v;
+	//ret[5] = block_f / 1.0f;
 
 	//float spring_constant = 3.0f;
 	//float c = 0.5f;
@@ -348,19 +397,34 @@ int main() {
 	//	glm::vec3(0.0f, 0.0f, 0.0f)
 	//};
 
-	glm::vec3 state[] = {
-		// spring origin
-		glm::vec3(0.0f, 0.0f, 0.0f),
-		glm::vec3(0.0f, 0.0f, 0.0f),
-		// spring joint 1
-		glm::vec3(4.0f, 0.0f, 0.0f),
-		glm::vec3(0.0f, 0.0f, 0.0f),
-		// spring end
-		glm::vec3(8.0f, 0.0f, 0.0f),
-		glm::vec3(0.0f, 0.0f, 0.0f)
-	};
+	float segment_length = 1.0f;
+	glm::vec3 state[num_points * 2];
+	for (int i = 0; i < num_points * 2; i += 2) {
+		state[i] = glm::vec3(0.0f, -segment_length * i, 0.0f);
+		state[i + 1] = glm::vec3(0.0f, 0.0f, 0.0f);
+	}
+	//glm::vec3 state[] = {
+	//	// spring origin
+	//	glm::vec3(0.0f, 0.0f, 0.0f),
+	//	glm::vec3(0.0f, 0.0f, 0.0f),
+	//	// spring joint 1
+	//	glm::vec3(0.0f, 1.0f, 0.0f),
+	//	glm::vec3(0.0f, 0.0f, 0.0f),
+	//	// spring joint 2
+	//	glm::vec3(0.0f, 2.0f, 0.0f),
+	//	glm::vec3(0.0f, 0.0f, 0.0f),
+	//	// spring end
+	//	glm::vec3(0.0f, 3.0f, 0.0f),
+	//	glm::vec3(0.0f, 0.0f, 0.0f),
+	//	glm::vec3(0.0f, 4.0f, 0.0f),
+	//	glm::vec3(0.0f, 0.0f, 0.0f),
+	//	glm::vec3(0.0f, 5.0f, 0.0f),
+	//	glm::vec3(0.0f, 0.0f, 0.0f),
+	//	glm::vec3(0.0f, 6.0f, 0.0f),
+	//	glm::vec3(0.0f, 0.0f, 0.0f)
+	//};
 
-	RK4Solver solver = RK4Solver(6, state, update_f2, 0.0f);
+	RK4Solver solver = RK4Solver(num_points * 2, state, update_f2, 0.0f);
 	//printf(
 	//	"%f %f %f\n%f %f %f",
 	//	solver.state[0].x, solver.state[0].y, solver.state[0].z,
@@ -472,5 +536,8 @@ void processInput(GLFWwindow* window) {
 		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-	isCameraMoving = glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS;
+	cameraVel.x = glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS ? 5.0f : 0.0f;
+	cameraVel.x = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS ? -5.0f : cameraVel.x;
+	cameraVel.z = glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS ? -5.0f : 0.0f;
+	cameraVel.z = glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS ? 5.0f: cameraVel.z;
 }
