@@ -1,6 +1,8 @@
 #include <gl/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <stdlib.h>
+#include <time.h>
 #include "stb_image.h"
 #include "shader.h"
 #include "rk4solver.h"
@@ -111,15 +113,42 @@ int shader, lineShader, waterShader;
 bool isCameraMoving = false;
 
 float box_boundary_y1 = -2.0f;
-float box_boundary_x = 1.5f;
+float box_boundary_y2 = -4.0f;
+float box_boundary_x = 2.5f;
 
 const int num_points = 30;
+const int num_fish = 5;
 struct point {
 	glm::vec3 position;
 };
 point points[num_points];
 
+struct fish {
+	float last_update;
+	glm::vec3 position;
+	glm::vec3 target;
+	float strength;
+};
+fish fishes[num_fish];
+
+glm::vec3 random_vec3() {
+	float x = (float)rand() / RAND_MAX - 0.5f;
+	float y = (float)rand() / RAND_MAX - 0.5f;
+	float z = (float)rand() / RAND_MAX - 0.5f;
+
+	return glm::normalize(glm::vec3(x, y, z));
+}
+
+void init_fish() {
+	for (int i = 0; i < num_fish; i++) {
+		fishes[i].last_update = glfwGetTime();
+		fishes[i].strength = (float)rand() / RAND_MAX;
+	}
+}
+
 void init() {
+	srand(time(NULL));
+
 	//float vertices[] = {
 	//	// positions          // colors           // texture coords
 	//	 0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
@@ -237,9 +266,11 @@ void init() {
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
+
+	init_fish();
 }
 
-void update(RK4Solver solver) {
+void update(RK4Solver solver, RK4Solver fish_solver) {
 	//if (solver.state[0].y < 0.0f) {
 	//	solver.state[1].y = -solver.state[1].y;
 	//}
@@ -256,9 +287,46 @@ void update(RK4Solver solver) {
 		}
 		points[i].position = solver.state[2 * i];
 	}
+
+	fish_solver.update(deltaTime);
+	for (int i = 0; i < num_fish; i++) {
+		if (glm::abs(fish_solver.state[2 * i].x) > box_boundary_x) {
+			float neg = fish_solver.state[2 * i].x / glm::abs(fish_solver.state[2 * i].x);
+			fish_solver.state[2 * i].x = neg * box_boundary_x;
+			//fish_solver.state[2 * i + 1] = -fish_solver.state[2 * i + 1];
+			//fishes[i].velocity = -fish_solver.state[2 * i + 1];
+		}
+		if (glm::abs(fish_solver.state[2 * i].z) > box_boundary_x) {
+			float neg = fish_solver.state[2 * i].z / glm::abs(fish_solver.state[2 * i].z);
+			fish_solver.state[2 * i].z = neg * box_boundary_x;
+			//fish_solver.state[2 * i + 1] = -fish_solver.state[2 * i + 1];
+			//fishes[i].velocity = -fish_solver.state[2 * i + 1];
+		}
+		if (fish_solver.state[2 * i].y > box_boundary_y1) {
+			fish_solver.state[2 * i].y = box_boundary_y1;
+			//fish_solver.state[2 * i + 1] = -fish_solver.state[2 * i + 1];
+			//fishes[i].velocity = -fish_solver.state[2 * i + 1];
+		}
+		if (fish_solver.state[2 * i].y < box_boundary_y2) {
+			fish_solver.state[2 * i].y = box_boundary_y2;
+			//fish_solver.state[2 * i + 1] = -fish_solver.state[2 * i + 1];
+			//fishes[i].velocity = -fish_solver.state[2 * i + 1];
+		}
+
+		//float current_time = glfwGetTime();
+		//if (current_time - fishes[i].last_update > 3.0f) {
+		//	fishes[i].target = random_vec3();
+		//	fishes[i].last_update = current_time;
+		//}
+
+		fishes[i].position = fish_solver.state[2 * i];
+		fishes[i].target = glm::normalize(points[num_points - 1].position - fishes[i].position);
+
+		//fishes[i].velocity = fish_solver.state[2 * i + 1];
+	}
 }
 
-void render(RK4Solver solver) {
+void render(RK4Solver solver, RK4Solver fish_solver) {
 	float worldScale = 0.5f;
 
 	glm::mat4 view = glm::mat4(1.0f);
@@ -355,11 +423,39 @@ void render(RK4Solver solver) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 	
+	// draw fishes
+	for (int i = 0; i < num_fish; i++) {
+		model = glm::mat4(1.0f);
+		model = glm::translate(model, fishes[i].position);
+
+		glm::vec3 dir = glm::normalize(fish_solver.state[2 * i + 1]);
+		float cosAngle = glm::dot(xAxis, dir);
+		float tol = 0.000001f;
+		if (glm::abs(glm::abs(cosAngle) - 1.0f) > tol) {
+			glm::vec3 c = glm::cross(xAxis, dir);
+			//printf("%f %f %f\n", c.x, c.y, c.z);
+			float theta = glm::degrees(glm::acos(glm::dot(xAxis, dir)));
+
+			model = glm::rotate(model, theta, c);
+		}
+		else {
+			if (cosAngle < 0) model = glm::rotate(model, 180.0f, yAxis);
+		}
+
+		model = glm::scale(model, glm::vec3(0.5f, 0.1f, 0.1f));
+
+		Shader::setMat4(lineShader, "model", model);
+		Shader::setVec4(lineShader, "color", glm::vec4(1.0f, 0.74f, 0.37f, 1.0f));
+
+		glBindVertexArray(linesVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+	}
+
 	// draw water box
 	Shader::use(waterShader);
 	model = glm::mat4(1.0f);
 	model = glm::translate(model, glm::vec3(0.0f, -3.0f, 0.0f));
-	model = glm::scale(model, glm::vec3(3.0f, 2.0f, 3.0f));
+	model = glm::scale(model, glm::vec3(5.0f, 2.0f, 5.0f));
 	Shader::setMat4(waterShader, "model", model);
 	Shader::setMat4(waterShader, "view", view);
 	Shader::setMat4(waterShader, "projection", projection);
@@ -451,6 +547,24 @@ glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
 	return ret;
 }
 
+glm::vec3* fish_update_f(float t, int n_vars, glm::vec3* state) {
+	glm::vec3* ret = new glm::vec3[n_vars];
+
+	for (int i = 0; i < n_vars; i += 2) {
+		glm::vec3 v = state[i + 1];
+		float c = 0.2f;
+
+		ret[i] = v;
+		ret[i + 1] = fishes[i / 2].strength * fishes[i / 2].target - c * v;
+	}
+
+	//ret[0] = state[1];
+	//ret[1] = glm::vec3(0.0f, 0.0f, 0.0f);
+	//ret[1] = 0.1f * fishes[0].velocity - 0.2f * state[1];
+
+	return ret;
+}
+
 int main() {
 	//glm::vec3 state[] = {
 	//	glm::vec3(0.0f, 10.0f, 0.0f),
@@ -494,16 +608,8 @@ int main() {
 	//	solver.state[1].x, solver.state[1].y, solver.state[1].z
 	//);
 	//return 0;
+
 	glfwInit();
-
-	glm::vec3 segment_length = glm::vec3(0.001f, 0.0f, 0.0f);
-	glm::vec3 state[num_points * 2];
-	for (int i = 0; i < (num_points) * 2; i += 2) {
-		state[i] = segment_length * ((float)i / 2);
-		state[i + 1] = glm::vec3(0.0f, 0.0f, 0.0f);
-	}
-
-	RK4Solver solver = RK4Solver(num_points * 2, state, update_f2, 0.0f);
 
 	GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
 	if (window == NULL) {
@@ -526,8 +632,21 @@ int main() {
 
 	init();
 
-	//unsigned int transformLoc = glGetUniformLocation(ourShader.ID, "transform");
-	//glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
+	glm::vec3 segment_length = glm::vec3(0.001f, 0.0f, 0.0f);
+	glm::vec3 state[num_points * 2];
+	for (int i = 0; i < (num_points) * 2; i += 2) {
+		state[i] = segment_length * ((float)i / 2);
+		state[i + 1] = glm::vec3(0.0f, 0.0f, 0.0f);
+	}
+	RK4Solver solver = RK4Solver(num_points * 2, state, update_f2, 0.0f);
+
+	glm::vec3 fish_state[num_fish * 2];
+	for (int i = 0; i < num_fish * 2; i += 2) {
+		fish_state[i] = glm::vec3(0.0f, -3.5f, 0.0f);
+		fish_state[i + 1] = random_vec3();
+		//fish_state[i + 1] = glm::vec3(0.0f, 1.0f, 0.0f);
+	}
+	RK4Solver fish_solver = RK4Solver(num_fish * 2, fish_state, fish_update_f, 0.0f);
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
@@ -537,8 +656,8 @@ int main() {
 	while (!glfwWindowShouldClose(window)) {
 		processInput(window);
 
-		update(solver);
-		render(solver);
+		update(solver, fish_solver);
+		render(solver, fish_solver);
 
 		//glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
