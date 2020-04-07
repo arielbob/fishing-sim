@@ -15,7 +15,7 @@ void processInput(GLFWwindow* window);
 unsigned int VAO, EBO;
 unsigned int texture1;
 unsigned int texture2;
-unsigned int linesVAO;
+unsigned int linesVAO, water_vao;
 
 float vertices[] = {
 -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
@@ -61,6 +61,36 @@ float vertices[] = {
 -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 };
 
+float water_vertices[] = {
+-0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
+ 0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
+ 0.5f,  0.5f, -0.5f, 0.30, 0.84, 0.82,
+ 0.5f,  0.5f, -0.5f, 0.30, 0.84, 0.82,
+-0.5f,  0.5f, -0.5f, 0.30, 0.84, 0.82,
+-0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
+
+-0.5f,  0.5f,  0.5f, 0.30, 0.84, 0.82,
+-0.5f,  0.5f, -0.5f, 0.30, 0.84, 0.82,
+-0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
+-0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
+-0.5f, -0.5f,  0.5f, 0.09, 0.15, 0.34,
+-0.5f,  0.5f,  0.5f, 0.30, 0.84, 0.82,
+
+ 0.5f,  0.5f,  0.5f, 0.30, 0.84, 0.82,
+ 0.5f,  0.5f, -0.5f, 0.30, 0.84, 0.82,
+ 0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
+ 0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
+ 0.5f, -0.5f,  0.5f, 0.09, 0.15, 0.34,
+ 0.5f,  0.5f,  0.5f, 0.30, 0.84, 0.82,
+
+-0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
+ 0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
+ 0.5f, -0.5f,  0.5f, 0.09, 0.15, 0.34,
+ 0.5f, -0.5f,  0.5f, 0.09, 0.15, 0.34,
+-0.5f, -0.5f,  0.5f, 0.09, 0.15, 0.34,
+-0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34
+};
+
 glm::vec3 cubePositions[] = {
   glm::vec3(0.0f,  0.0f,  0.0f)
 };
@@ -77,10 +107,10 @@ float pitch = 0.0f, yaw = -90.0f;
 bool firstMouse = true;
 float lastX = 400, lastY = 300;
 
-int shader, lineShader;
+int shader, lineShader, waterShader;
 bool isCameraMoving = false;
 
-const int num_points = 7;
+const int num_points = 10;
 struct point {
 	glm::vec3 position;
 };
@@ -188,10 +218,22 @@ void init() {
 	};*/
 
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// positions
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
+
+	waterShader = Shader::createShader("shaders/waterShader.vs", "shaders/waterShader.fs");
+	// water
+	glGenVertexArrays(1, &water_vao);
+	glGenBuffers(1, &VBO);
+	glBindVertexArray(water_vao);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+	glBufferData(GL_ARRAY_BUFFER, sizeof(water_vertices), water_vertices, GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
 }
 
 void update(RK4Solver solver) {
@@ -200,6 +242,7 @@ void update(RK4Solver solver) {
 	//}
 	solver.update(deltaTime);
 	for (int i = 0; i < num_points; i++) {
+		if (solver.state[2 * i].x < -5.0f) solver.state[2 * i].x = -5.0f;
 		points[i].position = solver.state[2 * i];
 	}
 	//points[0].position = solver.state[0];
@@ -229,59 +272,78 @@ void render(RK4Solver solver) {
 	Shader::use(lineShader);
 	glm::mat4 model = glm::mat4(1.0f);
 	model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f));
-	Shader::setMat4(shader, "model", model);
-	Shader::setMat4(shader, "view", view);
-	Shader::setMat4(shader, "projection", projection);
+	Shader::setMat4(lineShader, "model", model);
+	Shader::setMat4(lineShader, "view", view);
+	Shader::setMat4(lineShader, "projection", projection);
 	Shader::setVec4(lineShader, "color", glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
 	glBindVertexArray(linesVAO);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 
-	for (int i = 0; i < num_points; i++) {
-		if (i == num_points - 1) {
-			Shader::use(shader);
-			Shader::setInt(shader, "texture1", 0);
-			Shader::setInt(shader, "texture2", 1);
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::scale(model, glm::vec3(worldScale, worldScale, worldScale));
-			model = glm::translate(model, points[i].position);
-			Shader::setMat4(shader, "model", model);
+	for (int i = 0; i < num_points - 1; i++) {
+		//if (i == num_points - 1) {
+		//	Shader::use(shader);
+		//	Shader::setInt(shader, "texture1", 0);
+		//	Shader::setInt(shader, "texture2", 1);
+		//	glm::mat4 model = glm::mat4(1.0f);
+		//	model = glm::scale(model, glm::vec3(worldScale, worldScale, worldScale));
+		//	model = glm::translate(model, points[i].position);
+		//	Shader::setMat4(shader, "model", model);
 
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, texture1);
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, texture2);
-			glBindVertexArray(VAO);
-			glDrawArrays(GL_TRIANGLES, 0, 36);
+		//	glActiveTexture(GL_TEXTURE0);
+		//	glBindTexture(GL_TEXTURE_2D, texture1);
+		//	glActiveTexture(GL_TEXTURE1);
+		//	glBindTexture(GL_TEXTURE_2D, texture2);
+		//	glBindVertexArray(VAO);
+		//	glDrawArrays(GL_TRIANGLES, 0, 36);
+		//}
+		glm::mat4 model = glm::mat4(1.0f);
+		glm::vec3 ab = points[i + 1].position - points[i].position;
+		glm::vec3 dir = glm::normalize(ab);
+		float len = worldScale * glm::length(ab);
+
+		model = glm::translate(model, worldScale * points[i].position + (len / 2.0f) * dir);
+		float cosAngle = glm::dot(yAxis, dir);
+		printf("cos: %f\n", cosAngle);
+		float tol = 0.000001f;
+		if (glm::abs(glm::abs(cosAngle) - 1.0f) > tol) {
+			glm::vec3 c = glm::cross(yAxis, dir);
+			//printf("%f %f %f\n", c.x, c.y, c.z);
+			float theta = glm::degrees(glm::acos(glm::dot(yAxis, dir)));
+
+			model = glm::rotate(model, theta, c);
 		}
 		else {
-			glm::mat4 model = glm::mat4(1.0f);
-			glm::vec3 ab = points[i + 1].position - points[i].position;
-			glm::vec3 dir = glm::normalize(ab);
-			float len = worldScale * glm::length(ab);
-
-			model = glm::translate(model, worldScale * points[i].position + (len / 2.0f) * dir);
-			if (yAxis != dir) {
-				float cosAngle = glm::dot(yAxis, dir);
-				if (cosAngle != -1.0f) {
-					glm::vec3 c = glm::cross(yAxis, dir);
-					//printf("%f %f %f\n", c.x, c.y, c.z);
-					float theta = glm::degrees(glm::acos(glm::dot(yAxis, dir)));
-					model = glm::rotate(model, theta, c);
-				}
-				else {
-					model = glm::rotate(model, 180.0f, xAxis);
-				}
-			}
-			model = glm::scale(model, glm::vec3(0.05f, len, 0.05f));
-
-			Shader::setMat4(shader, "model", model);
-			Shader::setMat4(shader, "view", view);
-			Shader::setMat4(shader, "projection", projection);
-			Shader::setVec4(lineShader, "color", glm::vec4((i + 1)/num_points, 0.0f, 0.0f, 1.0f));
-			glBindVertexArray(linesVAO);
-			glDrawArrays(GL_TRIANGLES, 0, 36);
+			model = glm::rotate(model, 180.0f, zAxis);
 		}
+
+		glm::vec4 color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+		if (i > num_points - 5) {
+			color = glm::vec4(1.0f, 0.70f, 0.58f, 1.0f);
+			model = glm::scale(model, glm::vec3(0.05f, len, 0.05f));
+		}
+		else {
+			model = glm::scale(model, glm::vec3(0.02f, len, 0.02f));
+		}
+
+		Shader::setMat4(lineShader, "model", model);
+		Shader::setMat4(lineShader, "view", view);
+		Shader::setMat4(lineShader, "projection", projection);
+
+		Shader::setVec4(lineShader, "color", color);
+		glBindVertexArray(linesVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
+
+	Shader::use(waterShader);
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(0.0f, -2.5f, 0.0f));
+	model = glm::scale(model, glm::vec3(3.0f, 1.5f, 3.0f));
+	Shader::setMat4(waterShader, "model", model);
+	Shader::setMat4(waterShader, "view", view);
+	Shader::setMat4(waterShader, "projection", projection);
+	Shader::setVec4(waterShader, "color", glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+	glBindVertexArray(water_vao);
+	glDrawArrays(GL_TRIANGLES, 0, 24);
 }
 
 glm::vec3 dxdt(float t, glm::vec3* state) {
@@ -311,11 +373,8 @@ glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
 		1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
 	};
 
-	//float spring_k_1 = 3.0f;
-	//float spring_k_2 = 3.0f;
-	//float spring_rest_1 = 5.0f;
-	//float spring_rest_2 = 5.0f;
 	float c = 0.5f;
+	float rest_length = 0.05f;
 
 	// generate the derivatives for the joints
 	for (int i = 2; i < n_vars; i += 2) {
@@ -324,29 +383,42 @@ glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
 
 		glm::vec3 prevPos = state[i - 2];
 		//float stretch1 = glm::length(pos - prevPos) - spring_rests[i / 2 - 1];
-		float stretch1 = glm::length(pos - prevPos) - 1.0f;
+		float stretch1 = glm::length(pos - prevPos) - rest_length;
 		glm::vec3 dir1 = glm::normalize(pos - prevPos);
 		//float k1 = ks[i / 2 - 1];
-		float k1 = 10.0f;
+		float k1 = 35.0f;
 
 		glm::vec3 force;
 		if (i < n_vars - 2) {
 			glm::vec3 nextPos = state[i + 2];
 			//float stretch2 = glm::length(nextPos - pos) - spring_rests[i / 2];
-			float stretch2 = glm::length(nextPos - pos) - 1.0f;
+			float stretch2 = glm::length(nextPos - pos) - rest_length;
 			glm::vec3 dir2 = glm::normalize(nextPos - pos);
 			//float k2 = ks[i / 2];
-			float k2 = 10.0f;
+			float k2 = 35.0f;
 
-			force = (-k1 * stretch1 * dir1) + (k2 * stretch2 * dir2) - v * c;
+			float mass = 0.5f;
+			force = (-k1 * stretch1 * dir1) + (k2 * stretch2 * dir2) + glm::vec3(0.0f, -9.8f*mass, 0.0f) - v * c;
+			force /= mass;
 		}
 		else {
 			// handle end of spring
-			force = (-k1 * stretch1 * dir1) + glm::vec3(10.0f, -9.8f, 0.0f) - v * c;
+			float x_force = 10.0f;
+			float mass = 0.01f;
+			float y_force = -9.8f * mass;
+			//if (state[i].y <= -3.0f) y_force = 0.0f;
+			force = (-k1 * stretch1 * dir1) + glm::vec3(0.0f, y_force, 0.0f) - v * c;
+			force /= mass;
+		}
+
+		if (state[i].x < -5.0f) {
+			v.x = 0;
+			force.x = 0;
 		}
 
 		ret[i] = v;
-		ret[i + 1] = force / 1.0f;
+		//if (state[i].y <= -3.0f) ret[i].y = 0;
+		ret[i + 1] = force;
 	}
 
 	// calculate force on first joint
@@ -396,13 +468,11 @@ int main() {
 	//	glm::vec3(0.0f, 10.0f, 0.0f),
 	//	glm::vec3(0.0f, 0.0f, 0.0f)
 	//};
+	// TODO: add a worm - DONE
+	// TODO: collision detection
+	// TODO: fish sim
+	// TODO: catching fish
 
-	float segment_length = 1.0f;
-	glm::vec3 state[num_points * 2];
-	for (int i = 0; i < num_points * 2; i += 2) {
-		state[i] = glm::vec3(0.0f, -segment_length * i, 0.0f);
-		state[i + 1] = glm::vec3(0.0f, 0.0f, 0.0f);
-	}
 	//glm::vec3 state[] = {
 	//	// spring origin
 	//	glm::vec3(0.0f, 0.0f, 0.0f),
@@ -424,7 +494,6 @@ int main() {
 	//	glm::vec3(0.0f, 0.0f, 0.0f)
 	//};
 
-	RK4Solver solver = RK4Solver(num_points * 2, state, update_f2, 0.0f);
 	//printf(
 	//	"%f %f %f\n%f %f %f",
 	//	solver.state[0].x, solver.state[0].y, solver.state[0].z,
@@ -438,6 +507,15 @@ int main() {
 	//);
 	//return 0;
 	glfwInit();
+
+	glm::vec3 segment_length = glm::vec3(0.0f, 0.1f, 0.0f);
+	glm::vec3 state[num_points * 2];
+	for (int i = 0; i < (num_points) * 2; i += 2) {
+		state[i] = segment_length * ((float)i / 2);
+		state[i + 1] = glm::vec3(0.0f, 0.0f, 0.0f);
+	}
+
+	RK4Solver solver = RK4Solver(num_points * 2, state, update_f2, 0.0f);
 
 	GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
 	if (window == NULL) {
@@ -464,6 +542,8 @@ int main() {
 	//glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
 
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	while (!glfwWindowShouldClose(window)) {

@@ -158,6 +158,8 @@
     <None Include="shaders\lineShader.vs" />
     <None Include="shaders\shader.fs" />
     <None Include="shaders\shader.vs" />
+    <None Include="shaders\waterShader.fs" />
+    <None Include="shaders\waterShader.vs" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
