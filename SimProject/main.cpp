@@ -131,6 +131,7 @@ struct fish {
 	glm::vec3 position;
 	glm::vec3 target;
 	float strength;
+	float mass;
 	glm::vec4 color;
 };
 fish fishes[num_fish];
@@ -147,13 +148,14 @@ void init_fish() {
 	last_catch_time = glfwGetTime();
 	for (int i = 0; i < num_fish; i++) {
 		fishes[i].last_update = glfwGetTime();
-		fishes[i].strength = (float)rand() / RAND_MAX;
+		fishes[i].strength = glm::max((float)rand() / RAND_MAX, 0.5f);
 		fishes[i].color = glm::vec4(
 			glm::max(0.8f, (float)rand() / RAND_MAX),
 			glm::max(0.6f, (float)rand() / RAND_MAX),
 			0.0f,
 			1.0f
 		);
+		fishes[i].mass = glm::max((float)rand() / RAND_MAX, 0.1f);
 	}
 }
 
@@ -302,6 +304,8 @@ void update(RK4Solver solver) {
 	}
 
 	for (int i = num_points; i < num_points + num_fish; i++) {
+		int fish_i = i - num_points;
+
 		if (glm::abs(solver.state[2 * i].x) > box_boundary_x) {
 			float neg = solver.state[2 * i].x / glm::abs(solver.state[2 * i].x);
 			solver.state[2 * i].x = neg * box_boundary_x;
@@ -314,11 +318,13 @@ void update(RK4Solver solver) {
 			//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
 			//fishes[i].velocity = -solver.state[2 * i + 1];
 		}
-		if (solver.state[2 * i].y > box_boundary_y1) {
-			solver.state[2 * i].y = box_boundary_y1;
-			//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
-			//fishes[i].velocity = -solver.state[2 * i + 1];
-		}
+		//if (fish_i != caught_fish_idx && solver.state[2 * i].y > box_boundary_y1) {
+		//	// fish should not be limited in the y direction if they are the hooked one
+		//	// if they aren't hooked, then bound them by the top of the box
+		//	solver.state[2 * i].y = box_boundary_y1;
+		//	//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
+		//	//fishes[i].velocity = -solver.state[2 * i + 1];
+		//}
 		if (solver.state[2 * i].y < box_boundary_y2) {
 			solver.state[2 * i].y = box_boundary_y2;
 			//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
@@ -326,7 +332,6 @@ void update(RK4Solver solver) {
 		}
 
 		bool is_hook_occupied = caught_fish_idx >= 0;
-		int fish_i = i - num_points;
 
 		// update current fish's target
 		float current_time = glfwGetTime();
@@ -494,6 +499,7 @@ void render(RK4Solver solver) {
 
 		glm::vec3 fish_velocity = solver.state[(num_points * 2) + (i * 2) + 1];
 		glm::vec3 dir = glm::normalize(fish_velocity);
+		//glm::vec3 dir = glm::normalize(glm::vec3(1.0f, 0.0f, 1.0f));
 		float cosAngle = glm::dot(xAxis, dir);
 		float tol = 0.000001f;
 		if (glm::abs(glm::abs(cosAngle) - 1.0f) > tol) {
@@ -507,8 +513,8 @@ void render(RK4Solver solver) {
 			if (cosAngle < 0) model = glm::rotate(model, 180.0f, yAxis);
 		}
 
-		model = glm::rotate(model, 20.0f * (float)sin(glfwGetTime()*10.0f + fishes[i].color.x*100), yAxis);
-		model = glm::scale(model, glm::vec3(0.3f, 0.2f, 0.1f));
+		//model = glm::rotate(model, 20.0f * (float)sin(glfwGetTime()*10.0f + fishes[i].color.x*100), yAxis);
+		model = glm::scale(model, glm::vec3(0.2f, 0.05f, 0.05f));
 
 		Shader::setMat4(lineShader, "model", model);
 		Shader::setVec4(lineShader, "color", fishes[i].color);
@@ -589,12 +595,17 @@ glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
 			// handle end of spring
 			float x_force = 10.0f;
 			float mass = 0.005f;
-			if (caught_fish_idx >= 0) mass += 0.5f;
+			if (caught_fish_idx >= 0) mass += fishes[caught_fish_idx].mass;
 
 			float y_force = -9.8f * mass;
 			//if (state[i].y <= -3.0f) y_force = 0.0f;
 			force = (-k1 * stretch1 * dir1) + glm::vec3(0.0f, y_force, 0.0f) - v * c;
-			if (caught_fish_idx >= 0) force += fishes[caught_fish_idx].strength * fishes[caught_fish_idx].target;
+			if (caught_fish_idx >= 0 && state[i].y < box_boundary_y1) {
+				// only let the fish exert force if it's outside of water
+				// (since they can't move in air)
+				force += fishes[caught_fish_idx].strength * fishes[caught_fish_idx].target;
+				//if (state[i].y > box_boundary_y1) force += current_fish.mass * glm::vec3(0.0f, -9.8f, 0.0f);
+			}
 			force /= mass;
 
 			//if (caught_fish_idx >= 0) {
@@ -635,8 +646,19 @@ glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
 		else {
 			force = fishes[i / 2].strength * fishes[i / 2].target - c * v;
 		}*/
-		force = current_fish.strength * current_fish.target - c * v;
+		if (state[i].y < box_boundary_y1) {
+			force = current_fish.strength * current_fish.target - c * v;
+		}
+		else {
+			force = glm::vec3(0.0f, -9.8f * current_fish.mass, 0.0f);
+		}
 
+		//force = current_fish.strength * current_fish.target - c * v;
+
+		if (caught_fish_idx == (i - (num_points * 2)) / 2) {
+			v = glm::vec3(0.0f, 0.0f, 0.0f);
+			force = glm::vec3(0.0f, 0.0f, 0.0f);
+		}
 		ret[i] = v;
 		ret[i + 1] = force;
 	}
@@ -821,7 +843,9 @@ void processInput(GLFWwindow* window) {
 	cameraVel.x = glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS ? 5.0f : 0.0f;
 	cameraVel.x = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS ? -5.0f : cameraVel.x;
 	cameraVel.z = glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS ? -5.0f : 0.0f;
-	cameraVel.z = glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS ? 5.0f: cameraVel.z;
+	cameraVel.z = glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS ? 5.0f : cameraVel.z;
+	cameraVel.y = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS ? 5.0f : 0.0f;
+	cameraVel.y = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS ? -5.0f : cameraVel.y;
 
 	if (caught_fish_idx >= 0 && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
 		last_catch_time = currentFrame;
