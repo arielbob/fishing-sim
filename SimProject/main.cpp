@@ -364,6 +364,7 @@ void update(RK4Solver solver) {
 				//else fishes[fish_i].target = -glm::normalize(hook_pos - pos);
 			}
 			else {
+				// target the halfway point between the hook and the fish's current target
 				fishes[fish_i].target = glm::normalize((hook_pos - pos) + fishes[fish_i].target);
 			}
 		}
@@ -499,6 +500,7 @@ void render(RK4Solver solver) {
 
 		glm::vec3 fish_velocity = solver.state[(num_points * 2) + (i * 2) + 1];
 		glm::vec3 dir = glm::normalize(fish_velocity);
+		if (caught_fish_idx == i) dir = glm::normalize(fishes[i].target);
 		//glm::vec3 dir = glm::normalize(glm::vec3(1.0f, 0.0f, 1.0f));
 		float cosAngle = glm::dot(xAxis, dir);
 		float tol = 0.000001f;
@@ -514,7 +516,7 @@ void render(RK4Solver solver) {
 		}
 
 		//model = glm::rotate(model, 20.0f * (float)sin(glfwGetTime()*10.0f + fishes[i].color.x*100), yAxis);
-		model = glm::scale(model, glm::vec3(0.2f, 0.05f, 0.05f));
+		model = glm::scale(model, glm::vec3(0.3f, fishes[i].mass * 0.2, fishes[i].mass * 0.2));
 
 		Shader::setMat4(lineShader, "model", model);
 		Shader::setVec4(lineShader, "color", fishes[i].color);
