@@ -117,19 +117,21 @@ float box_boundary_y2 = -4.0f;
 float box_boundary_x = 2.5f;
 
 const int num_points = 30;
-const int num_fish = 10;
+const int num_fish = 30;
 struct point {
 	glm::vec3 position;
 };
 point points[num_points];
 
 int caught_fish_idx = -1;
+float last_catch_time;
 
 struct fish {
 	float last_update;
 	glm::vec3 position;
 	glm::vec3 target;
 	float strength;
+	glm::vec4 color;
 };
 fish fishes[num_fish];
 
@@ -142,9 +144,16 @@ glm::vec3 random_vec3() {
 }
 
 void init_fish() {
+	last_catch_time = glfwGetTime();
 	for (int i = 0; i < num_fish; i++) {
 		fishes[i].last_update = glfwGetTime();
 		fishes[i].strength = (float)rand() / RAND_MAX;
+		fishes[i].color = glm::vec4(
+			glm::max(0.8f, (float)rand() / RAND_MAX),
+			glm::max(0.6f, (float)rand() / RAND_MAX),
+			0.0f,
+			1.0f
+		);
 	}
 }
 
@@ -332,9 +341,11 @@ void update(RK4Solver solver) {
 
 		glm::vec3 hook_pos = points[num_points - 1].position;
 		glm::vec3 pos = solver.state[2 * i];
-		if (!is_hook_occupied && glm::length(pos - hook_pos) < 0.1f) {
+		// check if enough time has passed since letting go of a fish, so that
+		// when we let go of a fish, we don't automatically catch it again (we let it get away first)
+		bool can_catch = current_time - last_catch_time > 1.0f;
+		if (!is_hook_occupied && can_catch && glm::length(pos - hook_pos) < 0.1f) {
 			solver.state[2 * i] = hook_pos;
-			// TODO: set the target to somewhere interesting...
 			caught_fish_idx = fish_i;
 			fishes[caught_fish_idx].target = random_vec3();
 			fishes[caught_fish_idx].last_update = current_time;
@@ -378,11 +389,26 @@ void render(RK4Solver solver) {
 	// draw origin point
 	Shader::use(lineShader);
 	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f));
+	//model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f));
+	//Shader::setMat4(lineShader, "model", model);
+	//Shader::setMat4(lineShader, "view", view);
+	//Shader::setMat4(lineShader, "projection", projection);
+	//Shader::setVec4(lineShader, "color", glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+	//glBindVertexArray(linesVAO);
+	//glDrawArrays(GL_TRIANGLES, 0, 36);
+
+	glm::vec3 rod_start = solver.state[0] + glm::vec3(1.0f, -2.0f, 1.0f);
+	float rod_length = glm::length(solver.state[0] - rod_start);
+	glm::vec3 dir = glm::normalize(solver.state[0] - rod_start);
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, rod_start + (rod_length / 2.0f) * dir);
+	glm::vec3 c = glm::cross(yAxis, dir);
+	//printf("%f %f %f\n", c.x, c.y, c.z);
+	float theta = glm::degrees(glm::acos(glm::dot(yAxis, dir)));
+	model = glm::rotate(model, theta, c);
+	model = glm::scale(model, glm::vec3(0.1f, rod_length, 0.1f));
 	Shader::setMat4(lineShader, "model", model);
-	Shader::setMat4(lineShader, "view", view);
-	Shader::setMat4(lineShader, "projection", projection);
-	Shader::setVec4(lineShader, "color", glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+	Shader::setVec4(lineShader, "color", glm::vec4(0.53f, 0.35f, 0.20f, 1.0f));
 	glBindVertexArray(linesVAO);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 
@@ -439,8 +465,14 @@ void render(RK4Solver solver) {
 		glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 		if (i > num_points - 10) {
 			// draw worm
-			color = glm::vec4(1.0f, 0.70f, 0.58f, 1.0f);
-			model = glm::scale(model, glm::vec3(0.05f, len, 0.05f));
+			if (i > num_points - 6 && i < num_points - 3) {
+				color = glm::vec4(0.82f, 0.52f, 0.44f, 1.0f);
+				model = glm::scale(model, glm::vec3(0.08f, len, 0.05f));
+			}
+			else {
+				color = glm::vec4(1.0f, 0.70f, 0.58f, 1.0f);
+				model = glm::scale(model, glm::vec3(0.05f, len, 0.05f));
+			}
 		}
 		else {
 			model = glm::scale(model, glm::vec3(0.02f, len, 0.02f));
@@ -475,10 +507,11 @@ void render(RK4Solver solver) {
 			if (cosAngle < 0) model = glm::rotate(model, 180.0f, yAxis);
 		}
 
-		model = glm::scale(model, glm::vec3(0.5f, 0.1f, 0.1f));
+		model = glm::rotate(model, 20.0f * (float)sin(glfwGetTime()*10.0f + fishes[i].color.x*100), yAxis);
+		model = glm::scale(model, glm::vec3(0.3f, 0.2f, 0.1f));
 
 		Shader::setMat4(lineShader, "model", model);
-		Shader::setVec4(lineShader, "color", glm::vec4(1.0f, 0.74f, 0.37f, 1.0f));
+		Shader::setVec4(lineShader, "color", fishes[i].color);
 
 		glBindVertexArray(linesVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -628,8 +661,9 @@ int main() {
 	//};
 	// TODO: add a worm - DONE
 	// TODO: collision detection - DONE
-	// TODO: fish sim
-	// TODO: catching fish
+	// TODO: fish sim - DONE
+	// TODO: catching fish - DONE
+	// TODO: different fish sizes + weights
 
 	//glm::vec3 state[] = {
 	//	// spring origin
@@ -788,4 +822,12 @@ void processInput(GLFWwindow* window) {
 	cameraVel.x = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS ? -5.0f : cameraVel.x;
 	cameraVel.z = glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS ? -5.0f : 0.0f;
 	cameraVel.z = glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS ? 5.0f: cameraVel.z;
+
+	if (caught_fish_idx >= 0 && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+		last_catch_time = currentFrame;
+		fishes[caught_fish_idx].target = random_vec3();
+		fishes[caught_fish_idx].last_update = currentFrame;
+		fishes[caught_fish_idx].strength -= 10.0f;
+		caught_fish_idx = -1;
+	}
 }
