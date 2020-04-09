@@ -107,10 +107,10 @@ bool isCameraMoving = false;
 
 float box_boundary_y1 = -2.0f;
 float box_boundary_y2 = -4.0f;
-float box_boundary_x = 2.5f;
+float box_boundary_x = 5.0f;
 
 const int num_points = 30;
-const int num_fish = 30;
+const int num_fish = 100;
 struct point {
 	glm::vec3 position;
 };
@@ -141,7 +141,7 @@ void init_fish() {
 	last_catch_time = glfwGetTime();
 	for (int i = 0; i < num_fish; i++) {
 		fishes[i].last_update = glfwGetTime();
-		fishes[i].strength = glm::max((float)rand() / RAND_MAX, 0.5f);
+		fishes[i].strength = 0.5f; //glm::max((float)rand() / RAND_MAX, 0.5f);
 		fishes[i].color = glm::vec4(
 			glm::max(0.8f, (float)rand() / RAND_MAX),
 			glm::max(0.6f, (float)rand() / RAND_MAX),
@@ -149,6 +149,7 @@ void init_fish() {
 			1.0f
 		);
 		fishes[i].mass = glm::max((float)rand() / RAND_MAX, 0.1f);
+		fishes[i].target = random_vec3();
 	}
 }
 
@@ -276,6 +277,84 @@ void init() {
 	init_fish();
 }
 
+glm::vec3 get_away_vec(int fish_i) {
+	glm::vec3 accum = glm::vec3(0.0f, 0.0f, 0.0f);
+	int num_close = 0;
+	for (int j = 0; j < num_fish; j++) {
+		if (j == fish_i) continue;
+		glm::vec3 current_to_other = fishes[j].position - fishes[fish_i].position;
+		float len = glm::length(current_to_other);
+		// check if it's greater than some small number to prevent
+		// an attempt to normalize zero vector (which is nan and messes things up)
+		if (len < 0.3f) {
+			// if they're too close, then point away
+			//printf("too close\n");
+			accum += -glm::normalize(current_to_other);
+			num_close++;
+		}
+	}
+
+	glm::vec3 new_target = glm::vec3(0.0f, 0.0f, 0.0f);
+	if (num_close > 0) {
+		new_target = glm::normalize(accum / (float)num_close);
+	}
+
+	if (!isnan(new_target.x)) return new_target;
+	else return glm::vec3(0.0f, 0.0f, 0.0f);
+}
+
+glm::vec3 get_orient_vec(int fish_i) {
+	glm::vec3 accum = glm::vec3(0.0f, 0.0f, 0.0f);
+	int num_close = 0;
+	for (int j = 0; j < num_fish; j++) {
+		if (j == fish_i) continue;
+		glm::vec3 current_to_other = fishes[j].position - fishes[fish_i].position;
+		float len = glm::length(current_to_other);
+		// check if it's greater than some small number to prevent
+		// an attempt to normalize zero vector (which is nan and messes things up)
+		if (len < 0.5f) {
+			accum += glm::normalize(fishes[j].target);
+			num_close++;
+		}
+	}
+
+	glm::vec3 new_target = glm::vec3(0.0f, 0.0f, 0.0f);
+	if (num_close > 0) {
+		new_target = glm::normalize(accum / (float)num_close);
+	}
+
+	if (!isnan(new_target.x)) return new_target;
+	else return glm::vec3(0.0f, 0.0f, 0.0f);
+}
+
+glm::vec3 get_cohesion_vec(int fish_i) {
+	glm::vec3 accum = glm::vec3(0.0f, 0.0f, 0.0f);
+	int num_close = 0;
+	for (int j = 0; j < num_fish; j++) {
+		if (j == fish_i) continue;
+		glm::vec3 current_to_other = fishes[j].position - fishes[fish_i].position;
+		float len = glm::length(current_to_other);
+		// check if it's greater than some small number to prevent
+		// an attempt to normalize zero vector (which is nan and messes things up)
+		if (len < 1.0f) {
+			// if they're too close, then point away
+			//printf("too close\n");
+			accum += fishes[j].position;
+			num_close++;
+		}
+	}
+
+	glm::vec3 new_target = glm::vec3(0.0f, 0.0f, 0.0f);
+	if (num_close > 0) {
+		glm::vec3 average_pos = accum / (float)num_close;
+		new_target = glm::normalize(average_pos - fishes[fish_i].position);
+	}
+
+	if (!isnan(new_target.x)) return new_target;
+	else return glm::vec3(0.0f, 0.0f, 0.0f);
+}
+
+
 void update(RK4Solver solver) {
 	//if (solver.state[0].y < 0.0f) {
 	//	solver.state[1].y = -solver.state[1].y;
@@ -296,18 +375,19 @@ void update(RK4Solver solver) {
 		points[i].position = solver.state[2 * i];
 	}
 
+	// update fish
 	for (int i = num_points; i < num_points + num_fish; i++) {
 		int fish_i = i - num_points;
 
 		if (glm::abs(solver.state[2 * i].x) > box_boundary_x) {
 			float neg = solver.state[2 * i].x / glm::abs(solver.state[2 * i].x);
-			solver.state[2 * i].x = neg * box_boundary_x;
+			solver.state[2 * i].x = -neg * box_boundary_x;
 			//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
 			//fishes[i].velocity = -solver.state[2 * i + 1];
 		}
 		if (glm::abs(solver.state[2 * i].z) > box_boundary_x) {
 			float neg = solver.state[2 * i].z / glm::abs(solver.state[2 * i].z);
-			solver.state[2 * i].z = neg * box_boundary_x;
+			solver.state[2 * i].z = -neg * box_boundary_x;
 			//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
 			//fishes[i].velocity = -solver.state[2 * i + 1];
 		}
@@ -330,12 +410,12 @@ void update(RK4Solver solver) {
 		float current_time = glfwGetTime();
 		float update_interval = 2.0f;
 		// update every 1 second if the fish is hooked
-		if (fish_i == caught_fish_idx) update_interval = 0.5f;
+		//if (fish_i == caught_fish_idx) update_interval = 0.5f;
 
-		if (current_time - fishes[fish_i].last_update > update_interval) {
-			fishes[fish_i].target = random_vec3();
-			fishes[fish_i].last_update = current_time;
-		}
+		//if (current_time - fishes[fish_i].last_update > update_interval) {
+		//	//fishes[fish_i].target = random_vec3();
+		//	fishes[fish_i].last_update = current_time;
+		//}
 
 		glm::vec3 hook_pos = points[num_points - 1].position;
 		glm::vec3 pos = solver.state[2 * i];
@@ -343,6 +423,7 @@ void update(RK4Solver solver) {
 		// when we let go of a fish, we don't automatically catch it again (we let it get away first)
 		bool can_catch = current_time - last_catch_time > 1.0f;
 		if (!is_hook_occupied && can_catch && glm::length(pos - hook_pos) < 0.1f) {
+			// hook the fish if it's too close to the hook
 			solver.state[2 * i] = hook_pos;
 			caught_fish_idx = fish_i;
 			fishes[caught_fish_idx].target = random_vec3();
@@ -350,18 +431,66 @@ void update(RK4Solver solver) {
 			fishes[caught_fish_idx].strength += 10.0f;
 		}
 		else {
-			if (is_hook_occupied) {
-				if (fish_i == caught_fish_idx) {
-					solver.state[2 * i] = hook_pos;
+			if (fish_i == caught_fish_idx) {
+				// we make it seem like the fish is attached to the hook by just
+				// setting the position of the caught fish to the position of the
+				// hook position and the hook's position's movement just takes into
+				// account the fish's force and weight when we solve for the hook's
+				// position
+				// in essence, when a fish is hooked, we no longer simulate that
+				// individual fish, but instead act as if the hook is now that fish
+				// and just sync the caught fish's position the hook
+				solver.state[2 * i] = hook_pos;
+				if (current_time - fishes[fish_i].last_update > 0.5f) {
+					fishes[fish_i].target = random_vec3();
+					fishes[fish_i].last_update = current_time;
 				}
-				//else fishes[fish_i].target = -glm::normalize(hook_pos - pos);
 			}
 			else {
-				// target the halfway point between the hook and the fish's current target
-				fishes[fish_i].target = glm::normalize((hook_pos - pos) + fishes[fish_i].target);
+				glm::vec3 food_target = glm::normalize(hook_pos - pos);
+
+				glm::vec3 move_away = get_away_vec(fish_i);
+				glm::vec3 orient_avg = get_orient_vec(fish_i);
+				glm::vec3 cohesion_vec = get_cohesion_vec(fish_i);
+				glm::vec3 weighted_total = glm::vec3(0.0f, 0.0f, 0.0f);
+
+				float weights_sum = 0.0f;
+
+				if (!is_hook_occupied && !glm::isnan(food_target.x)) {
+					weighted_total += 0.5f * food_target;
+					weights_sum = 0.5f;
+				}
+
+				weighted_total += 0.2f * fishes[fish_i].target;
+				weights_sum += 0.2f;
+
+				// NOTE: since at the bottom, you can't have a point beneath you,
+				// all the fish tend to group at the bottom
+				if (!glm::isnan(move_away.x)) {
+					weighted_total += 0.6f * move_away;
+					weights_sum += 0.6f;
+				}
+
+				if (!glm::isnan(orient_avg.x)) {
+					weighted_total += 0.4f * orient_avg;
+					weights_sum += 0.4f;
+				}
+
+				if (!glm::isnan(cohesion_vec.x)) {
+					weighted_total += 0.4f * cohesion_vec;
+					weights_sum += 0.4f;
+				}
+				//weighted_total += 0.5f * food_target;
+				//printf("%f %f %f\n", weighted_total.x, weighted_total.y, weighted_total.z);
+				
+				fishes[fish_i].target = glm::normalize(weighted_total / weights_sum);
+
 			}
+			//else fishes[fish_i].target = -glm::normalize(hook_pos - pos);
 		}
 
+		//printf("fish %i: %f %f %f\n", fish_i, fishes[fish_i].position.x, fishes[fish_i].position.y, fishes[fish_i].position.z);
+		//if (glm::isnan(fishes[fish_i].position.x)) exit(1);
 		fishes[fish_i].position = solver.state[2 * i];
 		//fishes[fish_i].target = solver.state[2 * i + 1];
 	}
@@ -525,7 +654,7 @@ void render(RK4Solver solver) {
 	Shader::use(waterShader);
 	model = glm::mat4(1.0f);
 	model = glm::translate(model, glm::vec3(0.0f, -3.0f, 0.0f));
-	model = glm::scale(model, glm::vec3(5.0f, 2.0f, 5.0f));
+	model = glm::scale(model, glm::vec3(10.0f, 2.0f, 10.0f));
 	Shader::setMat4(waterShader, "model", model);
 	Shader::setMat4(waterShader, "view", view);
 	Shader::setMat4(waterShader, "projection", projection);
@@ -564,8 +693,13 @@ glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
 	float rest_length = 0.001f;
 	float k = 75.0f;
 
+	/*for (int i = 0; i < num_points; i++) {
+		printf("point pos %i: %f\n", i, state[i * 2]);
+	}
+	printf("\n");*/
+
 	// generate the derivatives for the joints
-	for (int i = 2; i < num_points * 2; i += 2) {
+	for (int i = 2; i < (num_points) * 2; i += 2) {
 		glm::vec3 v = state[i + 1];
 		glm::vec3 pos = state[i];
 
@@ -577,7 +711,7 @@ glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
 		float k1 = k;
 
 		glm::vec3 force;
-		if (i < (num_points * 2) - 2) {
+		if (i < (num_points - 1) * 2) {
 			glm::vec3 nextPos = state[i + 2];
 			//float stretch2 = glm::length(nextPos - pos) - spring_rests[i / 2];
 			float stretch2 = glm::length(nextPos - pos) - rest_length;
@@ -753,6 +887,7 @@ int main() {
 		// TODO: better start positions
 		state[i] = glm::vec3(0.0f, -3.5f, 0.0f);
 		state[i + 1] = random_vec3();
+		//state[i + 1] = glm::vec3(0.0f, 0.0f, 0.0f);
 	}
 	RK4Solver solver = RK4Solver(total_num_vars, state, update_f2, 0.0f);
 
