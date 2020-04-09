@@ -71,13 +71,6 @@ float water_vertices[] = {
 -0.5f,  0.5f, -0.5f, 0.30, 0.84, 0.82,
 -0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
 
--0.5f,  0.5f,  0.5f, 0.30, 0.84, 0.82,
--0.5f,  0.5f, -0.5f, 0.30, 0.84, 0.82,
--0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
--0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
--0.5f, -0.5f,  0.5f, 0.09, 0.15, 0.34,
--0.5f,  0.5f,  0.5f, 0.30, 0.84, 0.82,
-
  0.5f,  0.5f,  0.5f, 0.30, 0.84, 0.82,
  0.5f,  0.5f, -0.5f, 0.30, 0.84, 0.82,
  0.5f, -0.5f, -0.5f, 0.09, 0.15, 0.34,
@@ -97,15 +90,15 @@ glm::vec3 cubePositions[] = {
   glm::vec3(0.0f,  0.0f,  0.0f)
 };
 
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraPos = glm::vec3(-7.0f, 1.0f, 7.0f);
+glm::vec3 cameraFront = glm::vec3(1.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 glm::vec3 cameraVel = glm::vec3(0.0f, 0.0f, 0.0f);
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-float pitch = 0.0f, yaw = -90.0f;
+float pitch = 0.0f, yaw = -45.0f;
 bool firstMouse = true;
 float lastX = 400, lastY = 300;
 
@@ -385,7 +378,10 @@ void render(RK4Solver solver) {
 	projection = glm::perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 	Shader::setMat4(shader, "projection", projection);
 	
-	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+
+	glClearColor(0.82f, 0.71f, 0.60f, 1.0f);
+	//glClearColor(0.64f, 0.51f, 0.45f, 1.0f);
+	//glClearColor(0.90f, 0.29f, 0.42f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glm::vec3 xAxis = glm::vec3(1.0f, 0.0f, 0.0f);
@@ -534,7 +530,7 @@ void render(RK4Solver solver) {
 	Shader::setMat4(waterShader, "view", view);
 	Shader::setMat4(waterShader, "projection", projection);
 	glBindVertexArray(water_vao);
-	glDrawArrays(GL_TRIANGLES, 0, 24);
+	glDrawArrays(GL_TRIANGLES, 0, 18);
 }
 
 glm::vec3 dxdt(float t, glm::vec3* state) {
@@ -725,7 +721,7 @@ int main() {
 
 	glfwInit();
 
-	GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(800, 600, "Fishing Simulation", NULL, NULL);
 	if (window == NULL) {
 		std::cout << "Failed to create GLFW window" << std::endl;
 		glfwTerminate();
@@ -833,21 +829,21 @@ void processInput(GLFWwindow* window) {
 	deltaTime = currentFrame - lastFrame;
 	lastFrame = currentFrame;
 
-	const float cameraSpeed = 2.5f * deltaTime;
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		cameraPos += cameraSpeed * cameraFront;
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		cameraPos -= cameraSpeed * cameraFront;
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-	cameraVel.x = glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS ? 5.0f : 0.0f;
-	cameraVel.x = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS ? -5.0f : cameraVel.x;
-	cameraVel.z = glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS ? -5.0f : 0.0f;
-	cameraVel.z = glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS ? 5.0f : cameraVel.z;
-	cameraVel.y = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS ? 5.0f : 0.0f;
-	cameraVel.y = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS ? -5.0f : cameraVel.y;
+	//const float cameraSpeed = 2.5f * deltaTime;
+	//if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	//	cameraPos += cameraSpeed * cameraFront;
+	//if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	//	cameraPos -= cameraSpeed * cameraFront;
+	//if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	//	cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	//if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+	//	cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	cameraVel.x = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ? 5.0f : 0.0f;
+	cameraVel.x = glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ? -5.0f : cameraVel.x;
+	cameraVel.z = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? -5.0f : 0.0f;
+	cameraVel.z = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ? 5.0f : cameraVel.z;
+	cameraVel.y = glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS ? 5.0f : 0.0f;
+	cameraVel.y = glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS ? -5.0f : cameraVel.y;
 
 	if (caught_fish_idx >= 0 && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
 		last_catch_time = currentFrame;
