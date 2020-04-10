@@ -143,9 +143,9 @@ void init_fish() {
 		fishes[i].last_update = glfwGetTime();
 		fishes[i].strength = 0.5f; //glm::max((float)rand() / RAND_MAX, 0.5f);
 		fishes[i].color = glm::vec4(
-			glm::max(0.8f, (float)rand() / RAND_MAX),
+			1.0f,
 			glm::max(0.6f, (float)rand() / RAND_MAX),
-			0.0f,
+			glm::max(0.1f, (float)rand() / RAND_MAX),
 			1.0f
 		);
 		fishes[i].mass = glm::max((float)rand() / RAND_MAX, 0.1f);
@@ -640,7 +640,7 @@ void render(RK4Solver solver) {
 			if (cosAngle < 0) model = glm::rotate(model, 180.0f, yAxis);
 		}
 
-		//model = glm::rotate(model, 20.0f * (float)sin(glfwGetTime()*10.0f + fishes[i].color.x*100), yAxis);
+		model = glm::rotate(model, 20.0f * (float)sin(glfwGetTime()*0.5f*glm::length(fish_velocity) + fishes[i].color.x*100), yAxis);
 		model = glm::scale(model, glm::vec3(0.3f, fishes[i].mass * 0.2, fishes[i].mass * 0.2));
 
 		Shader::setMat4(lineShader, "model", model);
