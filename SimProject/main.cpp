@@ -156,46 +156,20 @@ void init_fish() {
 void init() {
 	srand(time(NULL));
 
-	//float vertices[] = {
-	//	// positions          // colors           // texture coords
-	//	 0.5f,  0.5f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f,   // top right
-	//	 0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f,   // bottom right
-	//	-0.5f, -0.5f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,   // bottom left
-	//	-0.5f,  0.5f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f    // top left
-	//};
-	//unsigned int indices[] = {  // note that we start from 0!
-	//	0, 1, 3,   // first triangle
-	//	1, 2, 3    // second triangle
-	//};
-
 	shader = Shader::createShader("shaders/shader.vs", "shaders/shader.fs");
 
 	unsigned int VBO;
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
-	//glGenBuffers(1, &EBO);
-
 	glBindVertexArray(VAO);
 
 	// copy vertices into a vertex buffer
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	// copy indices into an element buffer
-	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
 	// positions
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*) 0);
 	glEnableVertexAttribArray(0);
-	// colors
-	//glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-	//glEnableVertexAttribArray(1);
-	// textures
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-	//glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-	//glEnableVertexAttribArray(2);
 
 	// unbind the VBO from the GL_ARRAY_BUFFER target by binding 0
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -203,45 +177,6 @@ void init() {
 	glBindVertexArray(0);
 
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-	// load and create textures
-	glGenTextures(1, &texture1);
-	glBindTexture(GL_TEXTURE_2D, texture1);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	int width, height, nrChannels;
-	unsigned char* data = stbi_load("container.jpg", &width, &height, &nrChannels, 0);
-
-	if (data) {
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	} else {
-		std::cout << "Failed to load texture" << std::endl;
-	}
-	stbi_image_free(data);
-
-	glGenTextures(1, &texture2);
-	glBindTexture(GL_TEXTURE_2D, texture2);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	stbi_set_flip_vertically_on_load(true);
-	data = stbi_load("awesomeface.png", &width, &height, &nrChannels, 0);
-
-	if (data) {
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	}
-	else {
-		std::cout << "Failed to load texture" << std::endl;
-	}
-
-	stbi_image_free(data);
 
 	lineShader = Shader::createShader("shaders/lineShader.vs", "shaders/lineShader.fs");
 
@@ -382,40 +317,18 @@ void update(RK4Solver solver) {
 		if (glm::abs(solver.state[2 * i].x) > box_boundary_x) {
 			float neg = solver.state[2 * i].x / glm::abs(solver.state[2 * i].x);
 			solver.state[2 * i].x = -neg * box_boundary_x;
-			//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
-			//fishes[i].velocity = -solver.state[2 * i + 1];
 		}
 		if (glm::abs(solver.state[2 * i].z) > box_boundary_x) {
 			float neg = solver.state[2 * i].z / glm::abs(solver.state[2 * i].z);
 			solver.state[2 * i].z = -neg * box_boundary_x;
-			//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
-			//fishes[i].velocity = -solver.state[2 * i + 1];
 		}
-		//if (fish_i != caught_fish_idx && solver.state[2 * i].y > box_boundary_y1) {
-		//	// fish should not be limited in the y direction if they are the hooked one
-		//	// if they aren't hooked, then bound them by the top of the box
-		//	solver.state[2 * i].y = box_boundary_y1;
-		//	//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
-		//	//fishes[i].velocity = -solver.state[2 * i + 1];
-		//}
 		if (solver.state[2 * i].y < box_boundary_y2) {
 			solver.state[2 * i].y = box_boundary_y2;
-			//solver.state[2 * i + 1] = -solver.state[2 * i + 1];
-			//fishes[i].velocity = -solver.state[2 * i + 1];
 		}
 
 		bool is_hook_occupied = caught_fish_idx >= 0;
 
-		// update current fish's target
 		float current_time = glfwGetTime();
-		float update_interval = 2.0f;
-		// update every 1 second if the fish is hooked
-		//if (fish_i == caught_fish_idx) update_interval = 0.5f;
-
-		//if (current_time - fishes[fish_i].last_update > update_interval) {
-		//	//fishes[fish_i].target = random_vec3();
-		//	fishes[fish_i].last_update = current_time;
-		//}
 
 		glm::vec3 hook_pos = points[num_points - 1].position;
 		glm::vec3 pos = solver.state[2 * i];
@@ -456,9 +369,10 @@ void update(RK4Solver solver) {
 
 				float weights_sum = 0.0f;
 
-				if (!is_hook_occupied && !glm::isnan(food_target.x)) {
-					weighted_total += 0.5f * food_target;
-					weights_sum = 0.5f;
+				float food_target_weight = is_hook_occupied ? 0.1f : 0.5f;
+				if (!glm::isnan(food_target.x)) {
+					weighted_total += food_target_weight * food_target;
+					weights_sum = food_target_weight;
 				}
 
 				weighted_total += 0.2f * fishes[fish_i].target;
@@ -497,8 +411,6 @@ void update(RK4Solver solver) {
 }
 
 void render(RK4Solver solver) {
-	float worldScale = 0.5f;
-
 	glm::mat4 view = glm::mat4(1.0f);
 	view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 	Shader::setMat4(shader, "view", view);
@@ -507,7 +419,6 @@ void render(RK4Solver solver) {
 	projection = glm::perspective(45.0f, 800.0f / 600.0f, 0.1f, 100.0f);
 	Shader::setMat4(shader, "projection", projection);
 	
-
 	glClearColor(0.82f, 0.71f, 0.60f, 1.0f);
 	//glClearColor(0.64f, 0.51f, 0.45f, 1.0f);
 	//glClearColor(0.90f, 0.29f, 0.42f, 1.0f);
@@ -520,13 +431,6 @@ void render(RK4Solver solver) {
 	// draw origin point
 	Shader::use(lineShader);
 	glm::mat4 model = glm::mat4(1.0f);
-	//model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f));
-	//Shader::setMat4(lineShader, "model", model);
-	//Shader::setMat4(lineShader, "view", view);
-	//Shader::setMat4(lineShader, "projection", projection);
-	//Shader::setVec4(lineShader, "color", glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-	//glBindVertexArray(linesVAO);
-	//glDrawArrays(GL_TRIANGLES, 0, 36);
 
 	glm::vec3 rod_start = solver.state[0] + glm::vec3(1.0f, -2.0f, 1.0f);
 	float rod_length = glm::length(solver.state[0] - rod_start);
@@ -543,37 +447,7 @@ void render(RK4Solver solver) {
 	glBindVertexArray(linesVAO);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 
-	// draw grid points
-	//Shader::setVec4(lineShader, "color", glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
-	//for (int x = -5; x <= 5; x++) {
-	//	for (int y = -5; y <= 5; y++) {
-	//		for (int z = -5; z <= 5; z++) {
-	//			model = glm::mat4(1.0f);
-	//			model = glm::translate(model, glm::vec3((float)x, (float)y, (float)z));
-	//			model = glm::scale(model, glm::vec3(0.05f, 0.05f, 0.05f));
-	//			Shader::setMat4(lineShader, "model", model);
-	//			glDrawArrays(GL_TRIANGLES, 0, 36);
-	//		}
-	//	}
-	//}
-
 	for (int i = 0; i < num_points - 1; i++) {
-		//if (i == num_points - 1) {
-		//	Shader::use(shader);
-		//	Shader::setInt(shader, "texture1", 0);
-		//	Shader::setInt(shader, "texture2", 1);
-		//	glm::mat4 model = glm::mat4(1.0f);
-		//	model = glm::scale(model, glm::vec3(worldScale, worldScale, worldScale));
-		//	model = glm::translate(model, points[i].position);
-		//	Shader::setMat4(shader, "model", model);
-
-		//	glActiveTexture(GL_TEXTURE0);
-		//	glBindTexture(GL_TEXTURE_2D, texture1);
-		//	glActiveTexture(GL_TEXTURE1);
-		//	glBindTexture(GL_TEXTURE_2D, texture2);
-		//	glBindVertexArray(VAO);
-		//	glDrawArrays(GL_TRIANGLES, 0, 36);
-		//}
 		glm::mat4 model = glm::mat4(1.0f);
 		glm::vec3 ab = points[i + 1].position - points[i].position;
 		glm::vec3 dir = glm::normalize(ab);
@@ -590,7 +464,7 @@ void render(RK4Solver solver) {
 			model = glm::rotate(model, theta, c);
 		}
 		else {
-			model = glm::rotate(model, 180.0f, zAxis);
+			if (cosAngle < 0.0f) glm::rotate(model, 180.0f, zAxis);
 		}
 
 		glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -640,7 +514,7 @@ void render(RK4Solver solver) {
 			if (cosAngle < 0) model = glm::rotate(model, 180.0f, yAxis);
 		}
 
-		model = glm::rotate(model, 20.0f * (float)sin(glfwGetTime()*0.5f*glm::length(fish_velocity) + fishes[i].color.x*100), yAxis);
+		model = glm::rotate(model, 10.0f * (float)sin(glfwGetTime()*0.4f*glm::length(fish_velocity) + fishes[i].color.x*100), yAxis);
 		model = glm::scale(model, glm::vec3(0.3f, fishes[i].mass * 0.2, fishes[i].mass * 0.2));
 
 		Shader::setMat4(lineShader, "model", model);
@@ -660,18 +534,6 @@ void render(RK4Solver solver) {
 	Shader::setMat4(waterShader, "projection", projection);
 	glBindVertexArray(water_vao);
 	glDrawArrays(GL_TRIANGLES, 0, 18);
-}
-
-glm::vec3 dxdt(float t, glm::vec3* state) {
-	return state[1];
-}
-
-glm::vec3* update_f(float t, int n_vars, glm::vec3* state) {
-	glm::vec3* ret = new glm::vec3[n_vars];
-	ret[0] = state[1];
-	ret[1] = glm::vec3(0.0f, -9.8f, 0.0f);
-
-	return ret;
 }
 
 glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
@@ -798,61 +660,7 @@ glm::vec3* update_f2(float t, int n_vars, glm::vec3* state) {
 	return ret;
 }
 
-//glm::vec3* fish_update_f(float t, int n_vars, glm::vec3* state) {
-//	glm::vec3* ret = new glm::vec3[n_vars];
-//
-//	//ret[0] = state[1];
-//	//ret[1] = glm::vec3(0.0f, 0.0f, 0.0f);
-//	//ret[1] = 0.1f * fishes[0].velocity - 0.2f * state[1];
-//
-//	return ret;
-//}
-
 int main() {
-	//glm::vec3 state[] = {
-	//	glm::vec3(0.0f, 10.0f, 0.0f),
-	//	glm::vec3(0.0f, 0.0f, 0.0f)
-	//};
-	// TODO: add a worm - DONE
-	// TODO: collision detection - DONE
-	// TODO: fish sim - DONE
-	// TODO: catching fish - DONE
-	// TODO: different fish sizes + weights
-
-	//glm::vec3 state[] = {
-	//	// spring origin
-	//	glm::vec3(0.0f, 0.0f, 0.0f),
-	//	glm::vec3(0.0f, 0.0f, 0.0f),
-	//	// spring joint 1
-	//	glm::vec3(0.0f, 1.0f, 0.0f),
-	//	glm::vec3(0.0f, 0.0f, 0.0f),
-	//	// spring joint 2
-	//	glm::vec3(0.0f, 2.0f, 0.0f),
-	//	glm::vec3(0.0f, 0.0f, 0.0f),
-	//	// spring end
-	//	glm::vec3(0.0f, 3.0f, 0.0f),
-	//	glm::vec3(0.0f, 0.0f, 0.0f),
-	//	glm::vec3(0.0f, 4.0f, 0.0f),
-	//	glm::vec3(0.0f, 0.0f, 0.0f),
-	//	glm::vec3(0.0f, 5.0f, 0.0f),
-	//	glm::vec3(0.0f, 0.0f, 0.0f),
-	//	glm::vec3(0.0f, 6.0f, 0.0f),
-	//	glm::vec3(0.0f, 0.0f, 0.0f)
-	//};
-
-	//printf(
-	//	"%f %f %f\n%f %f %f",
-	//	solver.state[0].x, solver.state[0].y, solver.state[0].z,
-	//	solver.state[1].x, solver.state[1].y, solver.state[1].z
-	//);
-	//solver.update();
-	//printf(
-	//	"\n%f %f %f\n%f %f %f",
-	//	solver.state[0].x, solver.state[0].y, solver.state[0].z,
-	//	solver.state[1].x, solver.state[1].y, solver.state[1].z
-	//);
-	//return 0;
-
 	glfwInit();
 
 	GLFWwindow* window = glfwCreateWindow(800, 600, "Fishing Simulation", NULL, NULL);
@@ -886,18 +694,10 @@ int main() {
 	for (int i = num_points * 2; i < total_num_vars; i += 2) {
 		// TODO: better start positions
 		state[i] = glm::vec3(0.0f, -3.5f, 0.0f);
-		state[i + 1] = random_vec3();
-		//state[i + 1] = glm::vec3(0.0f, 0.0f, 0.0f);
+		//state[i + 1] = random_vec3();
+		state[i + 1] = glm::vec3(0.0f, 0.0f, 0.0f);
 	}
 	RK4Solver solver = RK4Solver(total_num_vars, state, update_f2, 0.0f);
-
-	//glm::vec3 fish_state[num_fish * 2];
-	//for (int i = 0; i < num_fish * 2; i += 2) {
-	//	fish_state[i] = glm::vec3(0.0f, -3.5f, 0.0f);
-	//	fish_state[i + 1] = random_vec3();
-	//	//fish_state[i + 1] = glm::vec3(0.0f, 1.0f, 0.0f);
-	//}
-	//RK4Solver fish_solver = RK4Solver(num_fish * 2, fish_state, fish_update_f, 0.0f);
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
