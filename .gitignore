@@ -1,4 +1,7 @@
-SimProject/Debug
-SimProject/x64
-SimProject/.vs
-report-draft.txt
+build/.vs
+build/*.sln
+build/*.i
+build/*.map
+build/*.obj
+build/*.pdb
+.emacs*
