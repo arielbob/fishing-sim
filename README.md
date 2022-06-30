@@ -13,7 +13,7 @@ Fishing simulation using [boids](https://en.wikipedia.org/wiki/Boids) and the [R
 ## Program Instructions
 
 - WASD to move the fishing rod on the horizontal plane
-- J/K to move camera down/up, respectively
+- J/K to move the fishing rod down/up, respectively
 - Press Space to let go of a caught fish
 
 ## Demo
