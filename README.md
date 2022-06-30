@@ -18,4 +18,4 @@ Fishing simulation using [boids](https://en.wikipedia.org/wiki/Boids) and the [R
 
 ## Demo
 
-Demo videos can bee seen [here](https://www.arielb.me/fishing/).
+Demo videos can be seen [here](https://www.arielb.me/fishing/).
